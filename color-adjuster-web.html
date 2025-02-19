@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Color Relationship Adjuster</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+        .controls {
+            flex: 1;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+        .display {
+            flex: 2;
+        }
+        .color-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .color-swatch {
+            width: 100px;
+            height: 80px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            position: relative;
+        }
+        .color-label {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255,255,255,0.8);
+            padding: 4px;
+            font-size: 12px;
+            text-align: center;
+        }
+        .slider-container {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input[type="text"] {
+            width: 100px;
+            padding: 5px;
+            margin-bottom: 10px;
+        }
+        input[type="range"] {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h1>Color Relationship Adjuster</h1>
+    
+    <div class="container">
+        <div class="controls">
+            <h3>Initial Colors</h3>
+            <div>
+                <input type="text" id="color1" value="#9FB6CD">
+                <input type="text" id="color2" value="#2F578B">
+                <input type="text" id="color3" value="#D4ABA9">
+                <input type="text" id="color4" value="#955956">
+            </div>
+
+            <h3>Adjustments</h3>
+            <div class="slider-container">
+                <label>Brightness</label>
+                <input type="range" id="brightness" min="-100" max="100" value="0">
+                <span id="brightnessValue">0</span>
+            </div>
+            
+            <div class="slider-container">
+                <label>Saturation</label>
+                <input type="range" id="saturation" min="-100" max="100" value="0">
+                <span id="saturationValue">0</span>
+            </div>
+            
+            <div class="slider-container">
+                <label>Hue Rotation</label>
+                <input type="range" id="hue" min="-180" max="180" value="0">
+                <span id="hueValue">0</span>
+            </div>
+        </div>
+        
+        <div class="display">
+            <h3>Original Colors</h3>
+            <div class="color-row" id="originalColors"></div>
+            
+            <h3>Adjusted Colors</h3>
+            <div class="color-row" id="adjustedColors"></div>
+        </div>
+    </div>
+
+    <script>
+        function hexToHSL(hex) {
+            // Remove the # if present
+            hex = hex.replace('#', '');
+            
+            // Convert hex to RGB
+            let r = parseInt(hex.substring(0,2), 16) / 255;
+            let g = parseInt(hex.substring(2,4), 16) / 255;
+            let b = parseInt(hex.substring(4,6), 16) / 255;
+            
+            let max = Math.max(r, g, b);
+            let min = Math.min(r, g, b);
+            let h, s, l = (max + min) / 2;
+
+            if (max === min) {
+                h = s = 0;
+            } else {
+                let d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h /= 6;
+            }
+
+            return {
+                h: h * 360,
+                s: s * 100,
+                l: l * 100
+            };
+        }
+
+        function HSLToHex(h, s, l) {
+            s /= 100;
+            l /= 100;
+
+            let c = (1 - Math.abs(2 * l - 1)) * s;
+            let x = c * (1 - Math.abs((h / 60) % 2 - 1));
+            let m = l - c/2;
+            let r = 0, g = 0, b = 0;
+
+            if (0 <= h && h < 60) {
+                r = c; g = x; b = 0;
+            } else if (60 <= h && h < 120) {
+                r = x; g = c; b = 0;
+            } else if (120 <= h && h < 180) {
+                r = 0; g = c; b = x;
+            } else if (180 <= h && h < 240) {
+                r = 0; g = x; b = c;
+            } else if (240 <= h && h < 300) {
+                r = x; g = 0; b = c;
+            } else if (300 <= h && h < 360) {
+                r = c; g = 0; b = x;
+            }
+
+            r = Math.round((r + m) * 255);
+            g = Math.round((g + m) * 255);
+            b = Math.round((b + m) * 255);
+
+            return '#' + 
+                (r.toString(16).padStart(2, '0')) +
+                (g.toString(16).padStart(2, '0')) +
+                (b.toString(16).padStart(2, '0'));
+        }
+
+        function adjustColor(color, brightness, saturation, hueRotation) {
+            let hsl = hexToHSL(color);
+            
+            // Adjust hue
+            hsl.h = (hsl.h + hueRotation) % 360;
+            if (hsl.h < 0) hsl.h += 360;
+            
+            // Adjust saturation
+            hsl.s = Math.max(0, Math.min(100, hsl.s * (1 + saturation/100)));
+            
+            // Adjust brightness (lightness)
+            hsl.l = Math.max(0, Math.min(100, hsl.l * (1 + brightness/100)));
+            
+            return HSLToHex(hsl.h, hsl.s, hsl.l);
+        }
+
+        function updateColors() {
+            const colors = [
+                document.getElementById('color1').value,
+                document.getElementById('color2').value,
+                document.getElementById('color3').value,
+                document.getElementById('color4').value
+            ];
+            
+            const brightness = parseInt(document.getElementById('brightness').value);
+            const saturation = parseInt(document.getElementById('saturation').value);
+            const hue = parseInt(document.getElementById('hue').value);
+            
+            // Update original colors
+            const originalContainer = document.getElementById('originalColors');
+            originalContainer.innerHTML = '';
+            colors.forEach(color => {
+                const swatch = document.createElement('div');
+                swatch.className = 'color-swatch';
+                swatch.style.backgroundColor = color;
+                swatch.innerHTML = `<div class="color-label">${color}</div>`;
+                originalContainer.appendChild(swatch);
+            });
+            
+            // Update adjusted colors
+            const adjustedContainer = document.getElementById('adjustedColors');
+            adjustedContainer.innerHTML = '';
+            colors.forEach(color => {
+                const adjustedColor = adjustColor(color, brightness, saturation, hue);
+                const swatch = document.createElement('div');
+                swatch.className = 'color-swatch';
+                swatch.style.backgroundColor = adjustedColor;
+                swatch.innerHTML = `<div class="color-label">${adjustedColor}</div>`;
+                adjustedContainer.appendChild(swatch);
+            });
+        }
+
+        // Update value displays
+        document.getElementById('brightness').addEventListener('input', function() {
+            document.getElementById('brightnessValue').textContent = this.value;
+            updateColors();
+        });
+        
+        document.getElementById('saturation').addEventListener('input', function() {
+            document.getElementById('saturationValue').textContent = this.value;
+            updateColors();
+        });
+        
+        document.getElementById('hue').addEventListener('input', function() {
+            document.getElementById('hueValue').textContent = this.value;
+            updateColors();
+        });
+
+        // Listen for color input changes
+        ['color1', 'color2', 'color3', 'color4'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateColors);
+        });
+
+        // Initial render
+        updateColors();
+    </script>
+</body>
+</html>
